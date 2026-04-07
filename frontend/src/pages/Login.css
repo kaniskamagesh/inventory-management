@@ -1,0 +1,119 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to right, #4e73df, #1cc88a);
+}
+.container {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card {
+   background: white;
+  padding: 40px;
+  border-radius: 10px;
+  width: 350px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  
+}
+
+.title {
+  margin-bottom: 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color:black;
+}
+
+.slider {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.slider button {
+  flex: 1;
+  margin: 0 5px;
+  padding: 8px;
+  border: none;
+  background: #eee;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: 0.3s;
+}
+
+.slider button:hover {
+  background: #4e73df;
+  color: white;
+}
+
+input {
+  padding: 12px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
+  border: none;
+  background: #4e73df;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  text-align: center;
+
+}
+
+.login-btn:hover {
+  background: #2e59d9;
+}
+
+.register-text {
+  margin-top: 15px;
+  font-size: 14px;
+  text-align: center;
+  color: black;
+}
+
+.register-link {
+  color: #4e73df;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* TAB CONTAINER */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* DEFAULT BUTTON */
+.tabs button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+/* HOVER */
+.tabs button:hover {
+  background: #cbd5e0;
+}
+
+/* ACTIVE BUTTON (🔥 THIS IS KEY) */
+.tabs button.active {
+  background: #3182ce;
+  color: white;
+}

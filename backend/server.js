@@ -5,12 +5,27 @@ const cors = require("cors");
 
 dotenv.config();
 const app = express();
+
+const allowedOrigins = [
+  "https://inventory-management-self-delta.vercel.app",
+  "http://localhost:3000"
+];
+
 app.use(cors({
-  origin: [
-    "https://your-vercel-project.vercel.app"
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
+
+app.options("*", cors());
+
 app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)

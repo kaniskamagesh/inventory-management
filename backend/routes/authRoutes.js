@@ -9,6 +9,10 @@ router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email and password are required" });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "User already exists" });
@@ -20,11 +24,12 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || "user"
+      role: role || "user",
     });
 
     res.json({ message: "Registered Successfully" });
   } catch (err) {
+    console.error("REGISTER ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -61,9 +66,10 @@ router.post("/login/:role", async (req, res) => {
       message: "Login Successful",
       token,
       role: user.role,
-      userId: user._id
+      userId: user._id,
     });
   } catch (err) {
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -83,18 +89,13 @@ router.get("/user/:id", async (req, res) => {
 // UPDATE USER
 router.put("/:id", async (req, res) => {
   const { name, email, password, role } = req.body;
-
-  let updateData = { name, email, role };
+  const updateData = { name, email, role };
 
   if (password) {
-    const hashed = await bcrypt.hash(password, 10);
-    updateData.password = hashed;
+    updateData.password = await bcrypt.hash(password, 10);
   }
 
-  const updated = await User.findByIdAndUpdate(req.params.id, updateData, {
-    new: true
-  });
-
+  const updated = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
   res.json(updated);
 });
 

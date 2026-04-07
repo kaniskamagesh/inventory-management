@@ -8,13 +8,9 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: [
-    "https://inventory-management-self-delta.vercel.app",
-    "http://localhost:3000"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  origin: "*",
+  methods: ["GET","POST","PUT","DELETE"],
+  allowedHeaders: ["Content-Type","Authorization"]
 }));
 
 app.use(express.json());

@@ -34,7 +34,6 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// LOGIN
 router.post("/login/:role", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -66,14 +65,13 @@ router.post("/login/:role", async (req, res) => {
       message: "Login Successful",
       token,
       role: user.role,
-      userId: user._id,
+      userId: user._id
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
-
 // GET ALL USERS
 router.get("/users", async (req, res) => {
   const users = await User.find().select("-password");

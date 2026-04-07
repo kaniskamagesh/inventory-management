@@ -1,49 +1,61 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const dotenv = require("dotenv");
 const User = require("./models/User");
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
+dotenv.config();
 
-async function createUsers() {
-  await User.deleteMany({});
-  console.log("Cleared existing users");
-  const adminPassword = await bcrypt.hash("12345678", 10);
-  const staff1Password = await bcrypt.hash("staffone", 10);
-  const staff2Password = await bcrypt.hash("stafftwo", 10);
-  const staff3Password = await bcrypt.hash("staffthree", 10);
+async function seedUsers() {
+  try {
 
-  await User.create({
-    name: "Admin",
-    email: "admin@gmail.com",
-    password: adminPassword,
-    role: "admin"
-  });
+    await mongoose.connect(process.env.MONGO_URI);
 
-  await User.create({
-    name: "Staff One",
-    email: "staff1@gmail.com",
-    password: staff1Password,
-    role: "staff"
-  });
+    console.log("MongoDB connected for seeding");
 
-  await User.create({
-    name: "Staff Two",
-    email: "staff2@gmail.com",
-    password: staff2Password,
-    role: "staff"
-  });
+    await User.deleteMany({});
 
-  await User.create({
-    name: "Staff Three",
-    email: "staff3@gmail.com",
-    password: staff3Password,
-    role: "staff"
-  });
+    const users = [
+      {
+        name: "Admin",
+        email: "admin@gmail.com",
+        password: await bcrypt.hash("12345678", 10),
+        role: "admin"
+      },
 
-  console.log("Users created successfully");
-  mongoose.disconnect();
+      {
+        name: "Staff One",
+        email: "staff1@gmail.com",
+        password: await bcrypt.hash("staffone", 10),
+        role: "staff"
+      },
+
+      {
+        name: "Staff Two",
+        email: "staff2@gmail.com",
+        password: await bcrypt.hash("stafftwo", 10),
+        role: "staff"
+      },
+
+      {
+        name: "Staff Three",
+        email: "staff3@gmail.com",
+        password: await bcrypt.hash("staffthree", 10),
+        role: "staff"
+      }
+    ];
+
+    await User.insertMany(users);
+
+    console.log("Users inserted successfully");
+
+    process.exit();
+
+  } catch (err) {
+
+    console.error(err);
+    process.exit(1);
+
+  }
 }
 
-createUsers();
+seedUsers();

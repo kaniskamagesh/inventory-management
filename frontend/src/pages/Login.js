@@ -11,8 +11,9 @@ function Login() {
     email: "",
     password: ""
   });
+
   const API_BASE =
-  import.meta.env.REACT_APP_API_URL || "https://inventory-management-pknh.onrender.com";
+    process.env.REACT_APP_API_URL || "https://inventory-management-pknh.onrender.com";
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -26,19 +27,15 @@ function Login() {
       });
 
       alert(res.data.message);
-
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("userId", res.data.userId);
       localStorage.setItem("role", res.data.role);
-
-      setForm({ email: "", password: "" });
 
       if (res.data.role === "admin") navigate("/admin-dashboard");
       else if (res.data.role === "staff") navigate("/staff-dashboard");
       else navigate("/user-dashboard");
     } catch (err) {
       alert(err.response?.data?.message || "Login failed");
-      setForm({ email: "", password: "" });
     }
   };
 
@@ -48,15 +45,9 @@ function Login() {
         <h2>Inventory Login</h2>
 
         <div className="tabs">
-          <button className={role === "user" ? "active" : ""} onClick={() => setRole("user")}>
-            User
-          </button>
-          <button className={role === "staff" ? "active" : ""} onClick={() => setRole("staff")}>
-            Staff
-          </button>
-          <button className={role === "admin" ? "active" : ""} onClick={() => setRole("admin")}>
-            Admin
-          </button>
+          <button className={role === "user" ? "active" : ""} onClick={() => setRole("user")}>User</button>
+          <button className={role === "staff" ? "active" : ""} onClick={() => setRole("staff")}>Staff</button>
+          <button className={role === "admin" ? "active" : ""} onClick={() => setRole("admin")}>Admin</button>
         </div>
 
         <input
@@ -80,10 +71,7 @@ function Login() {
         {role === "user" && (
           <p style={{ marginTop: "10px", textAlign: "center" }}>
             No account?{" "}
-            <span
-              style={{ color: "blue", cursor: "pointer" }}
-              onClick={() => navigate("/register")}
-            >
+            <span style={{ color: "blue", cursor: "pointer" }} onClick={() => navigate("/register")}>
               Register
             </span>
           </p>

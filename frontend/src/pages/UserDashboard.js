@@ -14,14 +14,16 @@ function UserDashboard() {
   const [sortBy, setSortBy] = useState("name");
   const userId = localStorage.getItem("userId");
 
-  useEffect(() => {
-    fetchData();
-    fetchUserInfo();
-  }, []);
+ useEffect(() => {
+  fetchData();
+  fetchUserInfo();
+  // eslint-disable-next-line
+}, []);
 
-  useEffect(() => {
-    filterAndSortProducts();
-  }, [products, searchTerm, sortBy]);
+ useEffect(() => {
+  filterAndSortProducts();
+  // eslint-disable-next-line
+}, [search, sort]);
 
   const fetchData = async () => {
     const prodRes = await axios.get("https://inventory-management-pknh.onrender.com/api/products");

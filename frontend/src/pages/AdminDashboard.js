@@ -22,9 +22,9 @@ function AdminDashboard() {
   const adminId = localStorage.getItem("userId");
 
   useEffect(() => {
-    fetchData();
-    fetchUserInfo();
-  }, []);
+  fetchUserInfo();
+  // eslint-disable-next-line
+}, []);
 
   const fetchData = async () => {
     const summaryRes = await axios.get("https://inventory-management-pknh.onrender.com/api/orders/summary");

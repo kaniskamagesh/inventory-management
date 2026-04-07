@@ -15,9 +15,9 @@ function StaffDashboard() {
   const staffId = localStorage.getItem("userId");
 
   useEffect(() => {
-    fetchData();
-    fetchUserInfo();
-  }, []);
+  fetchUserInfo();
+  // eslint-disable-next-line
+}, []);
 
   const fetchData = async () => {
     const orderRes = await axios.get("https://inventory-management-pknh.onrender.com/api/orders");

@@ -33,12 +33,12 @@ function Login() {
       localStorage.setItem("role", res.data.role);
 
       if (res.data.role === "admin") {
-        navigate("/admin-dashboard");
-      } else if (res.data.role === "staff") {
-        navigate("/staff-dashboard");
-      } else {
-        navigate("/user-dashboard");
-      }
+  setTimeout(() => navigate("/admin-dashboard"), 1500);
+} else if (res.data.role === "staff") {
+  setTimeout(() => navigate("/staff-dashboard"), 1500);
+} else {
+  setTimeout(() => navigate("/user-dashboard"), 1500);
+}
     } catch (err) {
       alert(err.response?.data?.message || "Login failed");
       console.error("LOGIN ERROR:", err.response?.data || err.message);

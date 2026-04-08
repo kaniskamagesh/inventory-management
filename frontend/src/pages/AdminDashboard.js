@@ -22,40 +22,56 @@ function AdminDashboard() {
   });
 
   const [editId, setEditId] = useState(null);
-
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [userInfo, setUserInfo] = useState({});
+  const [loading, setLoading] = useState(true);
 
   const adminId = localStorage.getItem("userId");
 
   useEffect(() => {
-    fetchData();
-    fetchUserInfo();
+    loadDashboard();
     // eslint-disable-next-line
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const summaryRes = await axios.get(`${API_BASE}/api/orders/summary`);
-      const usersRes = await axios.get(`${API_BASE}/api/auth/users`);
+  const loadDashboard = async () => {
+    setLoading(true);
 
-      setSummary(summaryRes.data || {});
-      setUsers(usersRes.data || []);
+    try {
+      await fetchData();
+      await fetchUserInfo();
     } catch (err) {
-      console.error("FETCH DATA ERROR:", err.response?.data || err.message);
-      alert("Failed to load admin dashboard data");
+      console.error("INITIAL ADMIN LOAD ERROR:", err.response?.data || err.message);
+
+      setTimeout(async () => {
+        try {
+          await fetchData();
+          await fetchUserInfo();
+        } catch (e) {
+          console.error("ADMIN RETRY ERROR:", e.response?.data || e.message);
+        } finally {
+          setLoading(false);
+        }
+      }, 2500);
+
+      return;
     }
+
+    setLoading(false);
+  };
+
+  const fetchData = async () => {
+    const summaryRes = await axios.get(`${API_BASE}/api/orders/summary`);
+    const usersRes = await axios.get(`${API_BASE}/api/auth/users`);
+
+    setSummary(summaryRes.data || {});
+    setUsers(usersRes.data || []);
   };
 
   const fetchUserInfo = async () => {
-    try {
-      if (!adminId) return;
-      const res = await axios.get(`${API_BASE}/api/auth/user/${adminId}`);
-      setUserInfo(res.data || {});
-    } catch (err) {
-      console.error("FETCH USER INFO ERROR:", err.response?.data || err.message);
-    }
+    if (!adminId) return;
+    const res = await axios.get(`${API_BASE}/api/auth/user/${adminId}`);
+    setUserInfo(res.data || {});
   };
 
   const handleChange = (e) => {
@@ -79,7 +95,7 @@ function AdminDashboard() {
         role: "staff"
       });
 
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error("ADD USER ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to add user");
@@ -92,7 +108,7 @@ function AdminDashboard() {
 
       await axios.delete(`${API_BASE}/api/auth/${id}`);
       alert("User deleted");
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error("DELETE USER ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to delete user");
@@ -137,7 +153,7 @@ function AdminDashboard() {
         role: "staff"
       });
 
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error("UPDATE USER ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to update user");
@@ -185,13 +201,13 @@ function AdminDashboard() {
           {showNotifications && (
             <div className="notification-dropdown">
               <div className="notification-item">Admin panel active</div>
-              <div className="notification-item">
-                Total users: {users.length}
-              </div>
+              <div className="notification-item">Total users: {users.length}</div>
             </div>
           )}
         </div>
       </div>
+
+      {loading && <p>Loading dashboard data...</p>}
 
       <h3>Business Summary</h3>
       <div className="summary-container">
@@ -212,7 +228,14 @@ function AdminDashboard() {
       </div>
 
       <h3>{editId ? "Update User" : "Add User / Staff"}</h3>
-      <div className="search-sort-container" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: "12px" }}>
+      <div
+        className="search-sort-container"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr 1fr auto",
+          gap: "12px"
+        }}
+      >
         <input
           className="search-input"
           type="text"

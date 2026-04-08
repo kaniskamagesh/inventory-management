@@ -24,50 +24,55 @@ function StaffDashboard() {
   const staffId = localStorage.getItem("userId");
 
   useEffect(() => {
-    loadDashboard();
-    // eslint-disable-next-line
-  }, []);
+    let mounted = true;
 
-  const loadDashboard = async () => {
-    setLoading(true);
+    const loadWithRetry = async () => {
+      setLoading(true);
 
-    try {
-      await fetchData();
-      await fetchUserInfo();
-    } catch (err) {
-      console.error("INITIAL STAFF LOAD ERROR:", err.response?.data || err.message);
-
-      setTimeout(async () => {
+      for (let i = 0; i < 5; i++) {
         try {
-          await fetchData();
-          await fetchUserInfo();
-        } catch (e) {
-          console.error("STAFF RETRY ERROR:", e.response?.data || e.message);
-        } finally {
-          setLoading(false);
+          const orderRes = await axios.get(`${API_BASE}/api/orders`, { timeout: 15000 });
+          const prodRes = await axios.get(`${API_BASE}/api/products`, { timeout: 15000 });
+
+          if (mounted) {
+            setOrders(orderRes.data.filter((o) => o.status === "Pending"));
+            setAllOrders(orderRes.data);
+            setProducts(prodRes.data);
+          }
+
+          if (staffId) {
+            const userRes = await axios.get(`${API_BASE}/api/auth/user/${staffId}`, { timeout: 15000 });
+            if (mounted) setUserInfo(userRes.data || {});
+          }
+
+          if (mounted) setLoading(false);
+          return;
+        } catch (err) {
+          console.log(`Staff load attempt ${i + 1} failed`, err.message);
+          await new Promise((resolve) => setTimeout(resolve, 2500));
         }
-      }, 2500);
+      }
 
-      return;
+      if (mounted) setLoading(false);
+    };
+
+    loadWithRetry();
+
+    return () => {
+      mounted = false;
+    };
+  }, [API_BASE, staffId]);
+
+  const refreshData = async () => {
+    try {
+      const orderRes = await axios.get(`${API_BASE}/api/orders`);
+      const prodRes = await axios.get(`${API_BASE}/api/products`);
+      setOrders(orderRes.data.filter((o) => o.status === "Pending"));
+      setAllOrders(orderRes.data);
+      setProducts(prodRes.data);
+    } catch (err) {
+      console.error("REFRESH ERROR:", err.response?.data || err.message);
     }
-
-    setLoading(false);
-  };
-
-  const fetchData = async () => {
-    const orderRes = await axios.get(`${API_BASE}/api/orders`);
-    const prodRes = await axios.get(`${API_BASE}/api/products`);
-
-    setOrders(orderRes.data.filter((o) => o.status === "Pending"));
-    setAllOrders(orderRes.data);
-    setProducts(prodRes.data);
-  };
-
-  const fetchUserInfo = async () => {
-    if (!staffId) return;
-
-    const res = await axios.get(`${API_BASE}/api/auth/user/${staffId}`);
-    setUserInfo(res.data || {});
   };
 
   const getStockLevel = (stock) => {
@@ -85,7 +90,7 @@ function StaffDashboard() {
         qty: order.quantity
       });
       alert("Order Approved!");
-      await fetchData();
+      await refreshData();
     } catch (err) {
       console.error("APPROVE ORDER ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to approve order");
@@ -108,7 +113,7 @@ function StaffDashboard() {
 
       alert("Product Added!");
       setForm({ name: "", price: "", cost: "", stock: "" });
-      await fetchData();
+      await refreshData();
     } catch (err) {
       console.error("ADD PRODUCT ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to add product");
@@ -117,11 +122,6 @@ function StaffDashboard() {
 
   const updateProduct = async () => {
     try {
-      if (!form.name || !form.price || !form.cost || !form.stock) {
-        alert("Please fill all product fields");
-        return;
-      }
-
       await axios.put(`${API_BASE}/api/products/${editId}`, {
         name: form.name,
         price: Number(form.price),
@@ -130,9 +130,9 @@ function StaffDashboard() {
       });
 
       alert("Product Updated!");
-      setForm({ name: "", price: "", cost: "", stock: "" });
       setEditId(null);
-      await fetchData();
+      setForm({ name: "", price: "", cost: "", stock: "" });
+      await refreshData();
     } catch (err) {
       console.error("UPDATE PRODUCT ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to update product");
@@ -142,10 +142,9 @@ function StaffDashboard() {
   const deleteProduct = async (id) => {
     try {
       if (!window.confirm("Delete this product?")) return;
-
       await axios.delete(`${API_BASE}/api/products/${id}`);
       alert("Product Deleted!");
-      await fetchData();
+      await refreshData();
     } catch (err) {
       console.error("DELETE PRODUCT ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to delete product");
@@ -171,30 +170,17 @@ function StaffDashboard() {
       <div className="header">
         <h2>Staff Dashboard</h2>
         <div className="header-right">
-          <button
-            className="icon-btn"
-            onClick={() => setShowNotifications(!showNotifications)}
-          >
+          <button className="icon-btn" onClick={() => setShowNotifications(!showNotifications)}>
             🔔
-            {orders.length > 0 && (
-              <span className="notification-badge">{orders.length}</span>
-            )}
+            {orders.length > 0 && <span className="notification-badge">{orders.length}</span>}
           </button>
 
-          <button
-            className="icon-btn"
-            onClick={() => setShowProfile(!showProfile)}
-          >
-            👤
-          </button>
+          <button className="icon-btn" onClick={() => setShowProfile(!showProfile)}>👤</button>
 
-          <button
-            className="logout"
-            onClick={() => {
-              localStorage.clear();
-              window.location.href = "/";
-            }}
-          >
+          <button className="logout" onClick={() => {
+            localStorage.clear();
+            window.location.href = "/";
+          }}>
             Logout
           </button>
 
@@ -210,9 +196,7 @@ function StaffDashboard() {
             <div className="notification-dropdown">
               <h4>Notifications</h4>
               {orders.length > 0 ? (
-                <div className="notification-item">
-                  {orders.length} order(s) pending
-                </div>
+                <div className="notification-item">{orders.length} order(s) pending</div>
               ) : (
                 <div className="notification-item">No pending orders</div>
               )}
@@ -221,192 +205,135 @@ function StaffDashboard() {
         </div>
       </div>
 
-      {loading && <p>Loading dashboard data...</p>}
-
-      <h3>Pending Orders ({orders.length})</h3>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            <th>Product</th>
-            <th>Qty</th>
-            <th>Amount</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.length > 0 ? (
-            orders.map((o) => (
-              <tr key={o._id}>
-                <td>{o.userId?.name}</td>
-                <td>{o.productId?.name}</td>
-                <td>{o.quantity}</td>
-                <td>${o.totalAmount}</td>
-                <td>
-                  <button
-                    className="btn approve"
-                    onClick={() => approveOrder(o)}
-                  >
-                    Approve
-                  </button>
-                </td>
+      {loading ? (
+        <p>Loading dashboard data...</p>
+      ) : (
+        <>
+          <h3>Pending Orders ({orders.length})</h3>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Amount</th>
+                <th>Action</th>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="5">No pending orders</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {orders.length > 0 ? orders.map((o) => (
+                <tr key={o._id}>
+                  <td>{o.userId?.name}</td>
+                  <td>{o.productId?.name}</td>
+                  <td>{o.quantity}</td>
+                  <td>${o.totalAmount}</td>
+                  <td>
+                    <button className="btn approve" onClick={() => approveOrder(o)}>
+                      Approve
+                    </button>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan="5">No pending orders</td></tr>
+              )}
+            </tbody>
+          </table>
 
-      <h3>{editId ? "Update Product" : "Add Product"}</h3>
-      <div
-        className="search-sort-container"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr auto",
-          gap: "12px"
-        }}
-      >
-        <input
-          className="search-input"
-          type="text"
-          name="name"
-          placeholder="Product Name"
-          value={form.name}
-          onChange={handleChange}
-        />
-
-        <input
-          className="search-input"
-          type="number"
-          name="price"
-          placeholder="Price"
-          value={form.price}
-          onChange={handleChange}
-        />
-
-        <input
-          className="search-input"
-          type="number"
-          name="cost"
-          placeholder="Cost"
-          value={form.cost}
-          onChange={handleChange}
-        />
-
-        <input
-          className="search-input"
-          type="number"
-          name="stock"
-          placeholder="Stock"
-          value={form.stock}
-          onChange={handleChange}
-        />
-
-        {editId ? (
-          <button className="btn approve" onClick={updateProduct}>
-            Update
-          </button>
-        ) : (
-          <button className="btn approve" onClick={addProduct}>
-            Add
-          </button>
-        )}
-      </div>
-
-      {editId && (
-        <div style={{ marginTop: "10px" }}>
-          <button
-            className="btn delete"
-            onClick={() => {
-              setEditId(null);
-              setForm({ name: "", price: "", cost: "", stock: "" });
+          <h3>{editId ? "Update Product" : "Add Product"}</h3>
+          <div
+            className="search-sort-container"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr 1fr auto",
+              gap: "12px"
             }}
           >
-            Cancel Edit
-          </button>
-        </div>
+            <input className="search-input" type="text" name="name" placeholder="Product Name" value={form.name} onChange={handleChange} />
+            <input className="search-input" type="number" name="price" placeholder="Price" value={form.price} onChange={handleChange} />
+            <input className="search-input" type="number" name="cost" placeholder="Cost" value={form.cost} onChange={handleChange} />
+            <input className="search-input" type="number" name="stock" placeholder="Stock" value={form.stock} onChange={handleChange} />
+
+            {editId ? (
+              <button className="btn approve" onClick={updateProduct}>Update</button>
+            ) : (
+              <button className="btn approve" onClick={addProduct}>Add</button>
+            )}
+          </div>
+
+          {editId && (
+            <div style={{ marginTop: "10px" }}>
+              <button
+                className="btn delete"
+                onClick={() => {
+                  setEditId(null);
+                  setForm({ name: "", price: "", cost: "", stock: "" });
+                }}
+              >
+                Cancel Edit
+              </button>
+            </div>
+          )}
+
+          <h3>Products</h3>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Price</th>
+                <th>Cost</th>
+                <th>Stock</th>
+                <th>Stock Level</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.length > 0 ? products.map((p) => (
+                <tr key={p._id}>
+                  <td>{p.name}</td>
+                  <td>${p.price}</td>
+                  <td>${p.cost}</td>
+                  <td>{p.stock}</td>
+                  <td>{getStockLevel(p.stock)}</td>
+                  <td>
+                    <button className="btn approve" style={{ marginRight: "8px" }} onClick={() => editProduct(p)}>Edit</button>
+                    <button className="btn delete" onClick={() => deleteProduct(p._id)}>Delete</button>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan="6">No products found</td></tr>
+              )}
+            </tbody>
+          </table>
+
+          <h3>All Orders</h3>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Verified By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allOrders.length > 0 ? allOrders.map((o) => (
+                <tr key={o._id}>
+                  <td>{o.userId?.name || "-"}</td>
+                  <td>{o.productId?.name || "-"}</td>
+                  <td>{o.quantity}</td>
+                  <td>${o.totalAmount}</td>
+                  <td>{o.status}</td>
+                  <td>{o.verifiedBy?.name || "-"}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan="6">No orders found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </>
       )}
-
-      <h3>Products</h3>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Price</th>
-            <th>Cost</th>
-            <th>Stock</th>
-            <th>Stock Level</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.length > 0 ? (
-            products.map((p) => (
-              <tr key={p._id}>
-                <td>{p.name}</td>
-                <td>${p.price}</td>
-                <td>${p.cost}</td>
-                <td>{p.stock}</td>
-                <td>{getStockLevel(p.stock)}</td>
-                <td>
-                  <button
-                    className="btn approve"
-                    style={{ marginRight: "8px" }}
-                    onClick={() => editProduct(p)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="btn delete"
-                    onClick={() => deleteProduct(p._id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="6">No products found</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-
-      <h3>All Orders</h3>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            <th>Product</th>
-            <th>Qty</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Verified By</th>
-          </tr>
-        </thead>
-        <tbody>
-          {allOrders.length > 0 ? (
-            allOrders.map((o) => (
-              <tr key={o._id}>
-                <td>{o.userId?.name || "-"}</td>
-                <td>{o.productId?.name || "-"}</td>
-                <td>{o.quantity}</td>
-                <td>${o.totalAmount}</td>
-                <td>{o.status}</td>
-                <td>{o.verifiedBy?.name || "-"}</td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="6">No orders found</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }

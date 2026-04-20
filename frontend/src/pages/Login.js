@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import "./Auth.css";
 
 function Login() {
-  const navigate = useNavigate();
   const [role, setRole] = useState("user");
   const [form, setForm] = useState({
     email: "",
     password: ""
   });
+  const [loading, setLoading] = useState(false);
 
   const API_BASE =
     process.env.REACT_APP_API_URL || "https://inventory-management-pknh.onrender.com";
@@ -19,12 +18,28 @@ function Login() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const wakeBackend = async () => {
+    try {
+      await axios.get(`${API_BASE}/`, { timeout: 15000 });
+    } catch (err) {
+      console.log("Wake backend error:", err.message);
+    }
+  };
+
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${API_BASE}/api/auth/login/${role}`, {
-        email: form.email,
-        password: form.password
-      });
+      setLoading(true);
+
+      await wakeBackend();
+
+      const res = await axios.post(
+        `${API_BASE}/api/auth/login/${role}`,
+        {
+          email: form.email,
+          password: form.password
+        },
+        { timeout: 20000 }
+      );
 
       alert(res.data.message || "Login Successful");
 
@@ -32,16 +47,20 @@ function Login() {
       localStorage.setItem("userId", res.data.userId);
       localStorage.setItem("role", res.data.role);
 
-      if (res.data.role === "admin") {
-  setTimeout(() => navigate("/admin-dashboard"), 1500);
-} else if (res.data.role === "staff") {
-  setTimeout(() => navigate("/staff-dashboard"), 1500);
-} else {
-  setTimeout(() => navigate("/user-dashboard"), 1500);
-}
+      setTimeout(() => {
+        if (res.data.role === "admin") {
+          window.location.href = "/admin-dashboard";
+        } else if (res.data.role === "staff") {
+          window.location.href = "/staff-dashboard";
+        } else {
+          window.location.href = "/user-dashboard";
+        }
+      }, 1500);
     } catch (err) {
-      alert(err.response?.data?.message || "Login failed");
       console.error("LOGIN ERROR:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,14 +108,18 @@ function Login() {
           onChange={handleChange}
         />
 
-        <button onClick={handleLogin}>Login</button>
+        <button onClick={handleLogin} disabled={loading}>
+          {loading ? "Please wait..." : "Login"}
+        </button>
 
         {role === "user" && (
           <p style={{ marginTop: "10px", textAlign: "center" }}>
             No account?{" "}
             <span
               style={{ color: "blue", cursor: "pointer" }}
-              onClick={() => navigate("/register")}
+              onClick={() => {
+                window.location.href = "/register";
+              }}
             >
               Register
             </span>

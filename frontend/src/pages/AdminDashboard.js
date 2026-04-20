@@ -27,55 +27,66 @@ function AdminDashboard() {
 
   const adminId = localStorage.getItem("userId");
 
-  useEffect(() => {
-    let mounted = true;
+  const loadDashboardData = async () => {
+    const summaryRes = await axios.get(`${API_BASE}/api/orders/summary`, {
+      timeout: 15000
+    });
+    const usersRes = await axios.get(`${API_BASE}/api/auth/users`, {
+      timeout: 15000
+    });
 
-    const loadWithRetry = async () => {
-      setLoading(true);
+    setSummary(summaryRes.data || {});
+    setUsers(usersRes.data || []);
 
-      for (let i = 0; i < 5; i++) {
-        try {
-          const summaryRes = await axios.get(`${API_BASE}/api/orders/summary`, { timeout: 15000 });
-          const usersRes = await axios.get(`${API_BASE}/api/auth/users`, { timeout: 15000 });
-
-          if (mounted) {
-            setSummary(summaryRes.data || {});
-            setUsers(usersRes.data || []);
-          }
-
-          if (adminId) {
-            const userRes = await axios.get(`${API_BASE}/api/auth/user/${adminId}`, { timeout: 15000 });
-            if (mounted) setUserInfo(userRes.data || {});
-          }
-
-          if (mounted) setLoading(false);
-          return;
-        } catch (err) {
-          console.log(`Admin load attempt ${i + 1} failed`, err.message);
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-        }
-      }
-
-      if (mounted) setLoading(false);
-    };
-
-    loadWithRetry();
-
-    return () => {
-      mounted = false;
-    };
-  }, [API_BASE, adminId]);
+    if (adminId) {
+      const userRes = await axios.get(`${API_BASE}/api/auth/user/${adminId}`, {
+        timeout: 15000
+      });
+      setUserInfo(userRes.data || {});
+    }
+  };
 
   const refreshData = async () => {
     try {
-      const summaryRes = await axios.get(`${API_BASE}/api/orders/summary`);
-      const usersRes = await axios.get(`${API_BASE}/api/auth/users`);
-      setSummary(summaryRes.data || {});
-      setUsers(usersRes.data || []);
+      await loadDashboardData();
     } catch (err) {
       console.error("REFRESH ERROR:", err.response?.data || err.message);
+      alert("Failed to refresh dashboard data");
     }
   };
+
+  useEffect(() => {
+    console.log("NEW ADMIN DASHBOARD CODE LOADED");
+
+    let attempts = 0;
+    let intervalId;
+
+    const tryLoad = async () => {
+      try {
+        await loadDashboardData();
+        setLoading(false);
+        clearInterval(intervalId);
+      } catch (err) {
+        console.log("Admin auto-load failed:", err.response?.data || err.message);
+        attempts += 1;
+
+        if (attempts >= 6) {
+          setLoading(false);
+          clearInterval(intervalId);
+        }
+      }
+    };
+
+    setLoading(true);
+    tryLoad();
+
+    intervalId = setInterval(() => {
+      tryLoad();
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line
+  }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -108,6 +119,7 @@ function AdminDashboard() {
   const handleDelete = async (id) => {
     try {
       if (!window.confirm("Delete this user?")) return;
+
       await axios.delete(`${API_BASE}/api/auth/${id}`);
       alert("User deleted");
       await refreshData();
@@ -129,13 +141,20 @@ function AdminDashboard() {
 
   const handleUpdate = async () => {
     try {
+      if (!form.name || !form.email || !form.role) {
+        alert("Please fill required fields");
+        return;
+      }
+
       const payload = {
         name: form.name,
         email: form.email,
         role: form.role
       };
 
-      if (form.password) payload.password = form.password;
+      if (form.password) {
+        payload.password = form.password;
+      }
 
       await axios.put(`${API_BASE}/api/auth/${editId}`, payload);
       alert("User updated");
@@ -161,12 +180,27 @@ function AdminDashboard() {
         <h2>Admin Dashboard</h2>
 
         <div className="header-right">
-          <button className="icon-btn" onClick={() => setShowNotifications(!showNotifications)}>🔔</button>
-          <button className="icon-btn" onClick={() => setShowProfile(!showProfile)}>👤</button>
-          <button className="logout" onClick={() => {
-            localStorage.clear();
-            window.location.href = "/";
-          }}>
+          <button
+            className="icon-btn"
+            onClick={() => setShowNotifications(!showNotifications)}
+          >
+            🔔
+          </button>
+
+          <button
+            className="icon-btn"
+            onClick={() => setShowProfile(!showProfile)}
+          >
+            👤
+          </button>
+
+          <button
+            className="logout"
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = "/";
+            }}
+          >
             Logout
           </button>
 
@@ -187,6 +221,12 @@ function AdminDashboard() {
         </div>
       </div>
 
+      <div style={{ marginBottom: "15px" }}>
+        <button className="btn approve" onClick={refreshData}>
+          Refresh Data
+        </button>
+      </div>
+
       {loading ? (
         <p>Loading dashboard data...</p>
       ) : (
@@ -197,10 +237,12 @@ function AdminDashboard() {
               <h3>Products</h3>
               <p className="value">{summary.totalProducts || 0}</p>
             </div>
+
             <div className="summary-box">
               <h3>Orders</h3>
               <p className="value">{summary.totalOrders || 0}</p>
             </div>
+
             <div className="summary-box">
               <h3>Revenue</h3>
               <p className="value">${summary.totalRevenue || 0}</p>
@@ -216,19 +258,52 @@ function AdminDashboard() {
               gap: "12px"
             }}
           >
-            <input className="search-input" type="text" name="name" placeholder="Name" value={form.name} onChange={handleChange} />
-            <input className="search-input" type="email" name="email" placeholder="Email" value={form.email} onChange={handleChange} />
-            <input className="search-input" type="password" name="password" placeholder={editId ? "New Password (optional)" : "Password"} value={form.password} onChange={handleChange} />
-            <select className="sort-select" name="role" value={form.role} onChange={handleChange}>
+            <input
+              className="search-input"
+              type="text"
+              name="name"
+              placeholder="Name"
+              value={form.name}
+              onChange={handleChange}
+            />
+
+            <input
+              className="search-input"
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+            />
+
+            <input
+              className="search-input"
+              type="password"
+              name="password"
+              placeholder={editId ? "New Password (optional)" : "Password"}
+              value={form.password}
+              onChange={handleChange}
+            />
+
+            <select
+              className="sort-select"
+              name="role"
+              value={form.role}
+              onChange={handleChange}
+            >
               <option value="staff">Staff</option>
               <option value="admin">Admin</option>
               <option value="user">User</option>
             </select>
 
             {editId ? (
-              <button className="btn approve" onClick={handleUpdate}>Update</button>
+              <button className="btn approve" onClick={handleUpdate}>
+                Update
+              </button>
             ) : (
-              <button className="btn approve" onClick={handleAddUser}>Add</button>
+              <button className="btn approve" onClick={handleAddUser}>
+                Add
+              </button>
             )}
           </div>
 
@@ -262,18 +337,34 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {users.length > 0 ? users.map((u) => (
-                <tr key={u._id}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>{u.role}</td>
-                  <td>
-                    <button className="btn approve" style={{ marginRight: "8px" }} onClick={() => handleEdit(u)}>Edit</button>
-                    <button className="btn delete" onClick={() => handleDelete(u._id)}>Delete</button>
-                  </td>
+              {users.length > 0 ? (
+                users.map((u) => (
+                  <tr key={u._id}>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>{u.role}</td>
+                    <td>
+                      <button
+                        className="btn approve"
+                        style={{ marginRight: "8px" }}
+                        onClick={() => handleEdit(u)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="btn delete"
+                        onClick={() => handleDelete(u._id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4">No users found</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="4">No users found</td></tr>
               )}
             </tbody>
           </table>
@@ -290,16 +381,20 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {summary.orders && summary.orders.length > 0 ? summary.orders.map((o) => (
-                <tr key={o._id}>
-                  <td>{o.userId?.name || "-"}</td>
-                  <td>{o.productId?.name || "-"}</td>
-                  <td>{o.quantity}</td>
-                  <td>${o.totalAmount}</td>
-                  <td>{o.verifiedBy?.name || "-"}</td>
+              {summary.orders && summary.orders.length > 0 ? (
+                summary.orders.map((o) => (
+                  <tr key={o._id}>
+                    <td>{o.userId?.name || "-"}</td>
+                    <td>{o.productId?.name || "-"}</td>
+                    <td>{o.quantity}</td>
+                    <td>${o.totalAmount}</td>
+                    <td>{o.verifiedBy?.name || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5">No approved orders found</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="5">No approved orders found</td></tr>
               )}
             </tbody>
           </table>

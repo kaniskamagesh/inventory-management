@@ -23,57 +23,67 @@ function StaffDashboard() {
 
   const staffId = localStorage.getItem("userId");
 
-  useEffect(() => {
-    let mounted = true;
+  const loadDashboardData = async () => {
+    const orderRes = await axios.get(`${API_BASE}/api/orders`, {
+      timeout: 15000
+    });
+    const prodRes = await axios.get(`${API_BASE}/api/products`, {
+      timeout: 15000
+    });
 
-    const loadWithRetry = async () => {
-      setLoading(true);
+    setOrders(orderRes.data.filter((o) => o.status === "Pending"));
+    setAllOrders(orderRes.data);
+    setProducts(prodRes.data);
 
-      for (let i = 0; i < 5; i++) {
-        try {
-          const orderRes = await axios.get(`${API_BASE}/api/orders`, { timeout: 15000 });
-          const prodRes = await axios.get(`${API_BASE}/api/products`, { timeout: 15000 });
-
-          if (mounted) {
-            setOrders(orderRes.data.filter((o) => o.status === "Pending"));
-            setAllOrders(orderRes.data);
-            setProducts(prodRes.data);
-          }
-
-          if (staffId) {
-            const userRes = await axios.get(`${API_BASE}/api/auth/user/${staffId}`, { timeout: 15000 });
-            if (mounted) setUserInfo(userRes.data || {});
-          }
-
-          if (mounted) setLoading(false);
-          return;
-        } catch (err) {
-          console.log(`Staff load attempt ${i + 1} failed`, err.message);
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-        }
-      }
-
-      if (mounted) setLoading(false);
-    };
-
-    loadWithRetry();
-
-    return () => {
-      mounted = false;
-    };
-  }, [API_BASE, staffId]);
+    if (staffId) {
+      const userRes = await axios.get(`${API_BASE}/api/auth/user/${staffId}`, {
+        timeout: 15000
+      });
+      setUserInfo(userRes.data || {});
+    }
+  };
 
   const refreshData = async () => {
     try {
-      const orderRes = await axios.get(`${API_BASE}/api/orders`);
-      const prodRes = await axios.get(`${API_BASE}/api/products`);
-      setOrders(orderRes.data.filter((o) => o.status === "Pending"));
-      setAllOrders(orderRes.data);
-      setProducts(prodRes.data);
+      await loadDashboardData();
     } catch (err) {
       console.error("REFRESH ERROR:", err.response?.data || err.message);
+      alert("Failed to refresh dashboard data");
     }
   };
+
+  useEffect(() => {
+    console.log("NEW STAFF DASHBOARD CODE LOADED");
+
+    let attempts = 0;
+    let intervalId;
+
+    const tryLoad = async () => {
+      try {
+        await loadDashboardData();
+        setLoading(false);
+        clearInterval(intervalId);
+      } catch (err) {
+        console.log("Staff auto-load failed:", err.response?.data || err.message);
+        attempts += 1;
+
+        if (attempts >= 6) {
+          setLoading(false);
+          clearInterval(intervalId);
+        }
+      }
+    };
+
+    setLoading(true);
+    tryLoad();
+
+    intervalId = setInterval(() => {
+      tryLoad();
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line
+  }, []);
 
   const getStockLevel = (stock) => {
     if (stock < 10) return "Low";
@@ -122,6 +132,11 @@ function StaffDashboard() {
 
   const updateProduct = async () => {
     try {
+      if (!form.name || !form.price || !form.cost || !form.stock) {
+        alert("Please fill all product fields");
+        return;
+      }
+
       await axios.put(`${API_BASE}/api/products/${editId}`, {
         name: form.name,
         price: Number(form.price),
@@ -142,6 +157,7 @@ function StaffDashboard() {
   const deleteProduct = async (id) => {
     try {
       if (!window.confirm("Delete this product?")) return;
+
       await axios.delete(`${API_BASE}/api/products/${id}`);
       alert("Product Deleted!");
       await refreshData();
@@ -170,17 +186,30 @@ function StaffDashboard() {
       <div className="header">
         <h2>Staff Dashboard</h2>
         <div className="header-right">
-          <button className="icon-btn" onClick={() => setShowNotifications(!showNotifications)}>
+          <button
+            className="icon-btn"
+            onClick={() => setShowNotifications(!showNotifications)}
+          >
             🔔
-            {orders.length > 0 && <span className="notification-badge">{orders.length}</span>}
+            {orders.length > 0 && (
+              <span className="notification-badge">{orders.length}</span>
+            )}
           </button>
 
-          <button className="icon-btn" onClick={() => setShowProfile(!showProfile)}>👤</button>
+          <button
+            className="icon-btn"
+            onClick={() => setShowProfile(!showProfile)}
+          >
+            👤
+          </button>
 
-          <button className="logout" onClick={() => {
-            localStorage.clear();
-            window.location.href = "/";
-          }}>
+          <button
+            className="logout"
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = "/";
+            }}
+          >
             Logout
           </button>
 
@@ -196,13 +225,21 @@ function StaffDashboard() {
             <div className="notification-dropdown">
               <h4>Notifications</h4>
               {orders.length > 0 ? (
-                <div className="notification-item">{orders.length} order(s) pending</div>
+                <div className="notification-item">
+                  {orders.length} order(s) pending
+                </div>
               ) : (
                 <div className="notification-item">No pending orders</div>
               )}
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{ marginBottom: "15px" }}>
+        <button className="btn approve" onClick={refreshData}>
+          Refresh Data
+        </button>
       </div>
 
       {loading ? (
@@ -221,20 +258,27 @@ function StaffDashboard() {
               </tr>
             </thead>
             <tbody>
-              {orders.length > 0 ? orders.map((o) => (
-                <tr key={o._id}>
-                  <td>{o.userId?.name}</td>
-                  <td>{o.productId?.name}</td>
-                  <td>{o.quantity}</td>
-                  <td>${o.totalAmount}</td>
-                  <td>
-                    <button className="btn approve" onClick={() => approveOrder(o)}>
-                      Approve
-                    </button>
-                  </td>
+              {orders.length > 0 ? (
+                orders.map((o) => (
+                  <tr key={o._id}>
+                    <td>{o.userId?.name}</td>
+                    <td>{o.productId?.name}</td>
+                    <td>{o.quantity}</td>
+                    <td>${o.totalAmount}</td>
+                    <td>
+                      <button
+                        className="btn approve"
+                        onClick={() => approveOrder(o)}
+                      >
+                        Approve
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5">No pending orders</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="5">No pending orders</td></tr>
               )}
             </tbody>
           </table>
@@ -248,15 +292,50 @@ function StaffDashboard() {
               gap: "12px"
             }}
           >
-            <input className="search-input" type="text" name="name" placeholder="Product Name" value={form.name} onChange={handleChange} />
-            <input className="search-input" type="number" name="price" placeholder="Price" value={form.price} onChange={handleChange} />
-            <input className="search-input" type="number" name="cost" placeholder="Cost" value={form.cost} onChange={handleChange} />
-            <input className="search-input" type="number" name="stock" placeholder="Stock" value={form.stock} onChange={handleChange} />
+            <input
+              className="search-input"
+              type="text"
+              name="name"
+              placeholder="Product Name"
+              value={form.name}
+              onChange={handleChange}
+            />
+
+            <input
+              className="search-input"
+              type="number"
+              name="price"
+              placeholder="Price"
+              value={form.price}
+              onChange={handleChange}
+            />
+
+            <input
+              className="search-input"
+              type="number"
+              name="cost"
+              placeholder="Cost"
+              value={form.cost}
+              onChange={handleChange}
+            />
+
+            <input
+              className="search-input"
+              type="number"
+              name="stock"
+              placeholder="Stock"
+              value={form.stock}
+              onChange={handleChange}
+            />
 
             {editId ? (
-              <button className="btn approve" onClick={updateProduct}>Update</button>
+              <button className="btn approve" onClick={updateProduct}>
+                Update
+              </button>
             ) : (
-              <button className="btn approve" onClick={addProduct}>Add</button>
+              <button className="btn approve" onClick={addProduct}>
+                Add
+              </button>
             )}
           </div>
 
@@ -287,20 +366,35 @@ function StaffDashboard() {
               </tr>
             </thead>
             <tbody>
-              {products.length > 0 ? products.map((p) => (
-                <tr key={p._id}>
-                  <td>{p.name}</td>
-                  <td>${p.price}</td>
-                  <td>${p.cost}</td>
-                  <td>{p.stock}</td>
-                  <td>{getStockLevel(p.stock)}</td>
-                  <td>
-                    <button className="btn approve" style={{ marginRight: "8px" }} onClick={() => editProduct(p)}>Edit</button>
-                    <button className="btn delete" onClick={() => deleteProduct(p._id)}>Delete</button>
-                  </td>
+              {products.length > 0 ? (
+                products.map((p) => (
+                  <tr key={p._id}>
+                    <td>{p.name}</td>
+                    <td>${p.price}</td>
+                    <td>${p.cost}</td>
+                    <td>{p.stock}</td>
+                    <td>{getStockLevel(p.stock)}</td>
+                    <td>
+                      <button
+                        className="btn approve"
+                        style={{ marginRight: "8px" }}
+                        onClick={() => editProduct(p)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn delete"
+                        onClick={() => deleteProduct(p._id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6">No products found</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="6">No products found</td></tr>
               )}
             </tbody>
           </table>
@@ -318,17 +412,21 @@ function StaffDashboard() {
               </tr>
             </thead>
             <tbody>
-              {allOrders.length > 0 ? allOrders.map((o) => (
-                <tr key={o._id}>
-                  <td>{o.userId?.name || "-"}</td>
-                  <td>{o.productId?.name || "-"}</td>
-                  <td>{o.quantity}</td>
-                  <td>${o.totalAmount}</td>
-                  <td>{o.status}</td>
-                  <td>{o.verifiedBy?.name || "-"}</td>
+              {allOrders.length > 0 ? (
+                allOrders.map((o) => (
+                  <tr key={o._id}>
+                    <td>{o.userId?.name || "-"}</td>
+                    <td>{o.productId?.name || "-"}</td>
+                    <td>{o.quantity}</td>
+                    <td>${o.totalAmount}</td>
+                    <td>{o.status}</td>
+                    <td>{o.verifiedBy?.name || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6">No orders found</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="6">No orders found</td></tr>
               )}
             </tbody>
           </table>
